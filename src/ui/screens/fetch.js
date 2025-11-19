@@ -61,7 +61,7 @@ export class FetchScreen {
             Logger.info('Fetching moments from Flow', { address: this.app.walletAddress });
             
             // Load Cadence script
-            const scriptResponse = await fetch('../cadence/get_topshot_moments.cdc');
+            const scriptResponse = await fetch('cadence/get_topshot_moments.cdc');
             const script = await scriptResponse.text();
             
             // Execute query
