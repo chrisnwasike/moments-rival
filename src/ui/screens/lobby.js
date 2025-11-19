@@ -164,15 +164,15 @@ export class LobbyScreen {
         
         try {
             // Server-side ownership verification
-            if (!window.MomentRivalsConfig.USE_MOCK) {
-                const verification = await this.verifyOwnership();
+            // if (!window.MomentRivalsConfig.USE_MOCK) {
+            //     const verification = await this.verifyOwnership();
                 
-                if (!verification.success) {
-                    throw new Error('Ownership verification failed');
-                }
+            //     if (!verification.success) {
+            //         throw new Error('Ownership verification failed');
+            //     }
                 
-                Logger.info('Deck ownership verified', verification.data);
-            }
+            //     Logger.info('Deck ownership verified', verification.data);
+            // }
             
             hideLoader();
             
