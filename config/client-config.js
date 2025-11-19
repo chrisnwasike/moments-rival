@@ -17,7 +17,7 @@ window.MomentRivalsConfig = {
     // FCL Configuration
     FCL_CONFIG: {
         'app.detail.title': 'Moment Rivals',
-        'app.detail.icon': 'assets/img/logo.png',
+        'app.detail.icon': 'https://chrisnwasike.github.io/moments-rival/assets/img/logo_black.png',
         // Testnet configuration
         'accessNode.api': 'https://rest-mainnet.onflow.org',
         'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
