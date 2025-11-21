@@ -1,6 +1,6 @@
 /**
  * Deck Builder Screen
- * Select 7 moments to build a deck
+ * Select  moments to build a deck
  */
 
 import { Logger } from '../../utils/logger.js';
@@ -88,6 +88,9 @@ export class DeckScreen {
                                             </h5>
                                         </div>
                                         <div class="col-auto">
+                                            <button id="showTutorialBtn" class="btn btn-sm btn-outline-info me-2">
+                                                <i class="bi bi-question-circle"></i> How to Build
+                                            </button>
                                             <div class="btn-group btn-group-sm">
                                                 <select id="filterTier" class="form-select form-select-sm d-none">
                                                     <option value="all">All Tiers</option>
@@ -123,12 +126,299 @@ export class DeckScreen {
                         </div>
                     </div>
                 </div>
+                ${this.renderTutorialModal()}
             </div>
         `;
         
         this.attachEventListeners();
         this.updateSaveButton();
+
+        // Check if this is first time user
+        this.checkFirstTimeUser();
     }
+
+    renderTutorialModal() {
+        return `
+            <!-- Tutorial Modal -->
+            <div class="modal fade" id="tutorialModal" tabindex="-1" aria-labelledby="tutorialModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tutorialModalLabel">
+                                <i class="bi bi-lightbulb"></i> How to Build Your Deck
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Welcome Section -->
+                            <div class="alert alert-info mb-4">
+                                <h6 class="alert-heading">
+                                    <i class="bi bi-info-circle-fill"></i> Welcome to Deck Building!
+                                </h6>
+                                <p class="mb-0">
+                                    Build a powerful deck of <strong>${this.deckSize} cards</strong> from your NBA Top Shot collection. 
+                                    Each card represents a Moment with unique stats and abilities.
+                                </p>
+                            </div>
+
+                            <!-- Card Types Section -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-grid-3x3-gap"></i> Understanding Card Types
+                            </h6>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-4 mb-3">
+                                    <div class="card border-danger h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-lightning-charge-fill"></i> OFFENSE
+                                            </h6>
+                                            <p class="card-text small">
+                                                High offensive power for scoring points. Use these to attack and win turns.
+                                            </p>
+                                            <ul class="small">
+                                                <li>High Offense stat</li>
+                                                <li>Score points vs opponent defense</li>
+                                                <li>Examples: Dunks, Layups, 3-Pointers</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <div class="card border-primary h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-shield-fill"></i> DEFENSE
+                                            </h6>
+                                            <p class="card-text small">
+                                                Strong defensive abilities to block opponent attacks.
+                                            </p>
+                                            <ul class="small">
+                                                <li>High Defense stat</li>
+                                                <li>Reduce opponent points</li>
+                                                <li>Examples: Blocks, Steals, Rebounds</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <div class="card border-warning h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-star-fill"></i> SUPPORT
+                                            </h6>
+                                            <p class="card-text small">
+                                                Boost your offense or defense cards with additional power.
+                                            </p>
+                                            <ul class="small">
+                                                <li>Adds bonus stats</li>
+                                                <li>Combo with Offense/Defense</li>
+                                                <li>Examples: Assists, Passes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Deck Requirements -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-check2-square"></i> Deck Requirements
+                            </h6>
+                            
+                            <div class="alert alert-warning mb-4">
+                                <strong>Your deck must have <strong>Exactly ${this.deckSize} cards</strong> - No more, no less</strong>
+                            </div>
+
+                            <!-- Building Steps -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-list-ol"></i> Building Your Deck (Step by Step)
+                            </h6>
+                            
+                            <div class="accordion mb-4" id="tutorialAccordion">
+                                <!-- Step 1 -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#step1">
+                                            <strong>Step 1:</strong>&nbsp;Browse Your Collection
+                                        </button>
+                                    </h2>
+                                    <div id="step1" class="accordion-collapse collapse show" data-bs-parent="#tutorialAccordion">
+                                        <div class="accordion-body">
+                                            <p>Look through your NBA Top Shot Moments on the right side.</p>
+                                            <ul>
+                                                <li>Use <strong>filters</strong> to sort by card type (Offense, Defense, Support)</li>
+                                                <li>Use <strong>sort options</strong> to order by stats (Offense, Defense, Cost)</li>
+                                                <li>Check each card's <strong>stats</strong> and <strong>energy cost</strong></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2 -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step2">
+                                            <strong>Step 2:</strong>&nbsp;Select Your Cards
+                                        </button>
+                                    </h2>
+                                    <div id="step2" class="accordion-collapse collapse" data-bs-parent="#tutorialAccordion">
+                                        <div class="accordion-body">
+                                            <p>Click on any card to add it to your deck.</p>
+                                            <ul>
+                                                <li>Selected cards appear in <strong>deck slots</strong> on the left</li>
+                                                <li>Cards light up with a <strong>green checkmark</strong> when selected</li>
+                                                <li>Click the <strong>X button</strong> to remove cards from your deck</li>
+                                                <li>Maximum ${this.deckSize} cards total</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 3 -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step3">
+                                            <strong>Step 3:</strong>&nbsp;Balance Your Strategy
+                                        </button>
+                                    </h2>
+                                    <div id="step3" class="accordion-collapse collapse" data-bs-parent="#tutorialAccordion">
+                                        <div class="accordion-body">
+                                            <p>Create a balanced deck with different card types:</p>
+                                            <ul>
+                                                <li><strong>Offense cards (Red):</strong> 8-12 recommended for scoring</li>
+                                                <li><strong>Defense cards (Blue):</strong> 8-12 recommended for protection</li>
+                                                <li><strong>Support cards (Yellow):</strong> 1-5 recommended for combos</li>
+                                            </ul>
+                                            <p class="mb-0">
+                                                <strong>Pro Tip:</strong> Consider energy costs! Mix high-cost powerful cards with low-cost cards for flexibility.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 4 -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step4">
+                                            <strong>Step 4:</strong>&nbsp;Save Your Deck
+                                        </button>
+                                    </h2>
+                                    <div id="step4" class="accordion-collapse collapse" data-bs-parent="#tutorialAccordion">
+                                        <div class="accordion-body">
+                                            <p>When your deck meets all requirements:</p>
+                                            <ul>
+                                                <li>The <strong>"Save & Continue"</strong> button turns green</li>
+                                                <li>Click it to save your deck</li>
+                                                <li>You'll proceed to the <strong>Match Lobby</strong></li>
+                                            </ul>
+                                            <div class="alert alert-success mb-0">
+                                                <strong>Quick Tip:</strong> Try the <strong>"Random Deck"</strong> button for instant deck generation!
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tips & Tricks -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-trophy-fill"></i> Strategy Tips
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card bg-light h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-graph-up text-success"></i> Energy Management
+                                            </h6>
+                                            <p class="card-text small mb-0">
+                                                Pay attention to energy costs! Lower cost cards let you play more per turn. 
+                                                Mix 1-cost, 2-cost, and 3-cost cards for flexibility.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <div class="card bg-light h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-stars text-warning"></i> Serial Numbers Matter
+                                            </h6>
+                                            <p class="card-text small mb-0">
+                                                Lower serial number Moments (#1-50) have bonus stats! 
+                                                Legendary and Rare tiers are generally stronger.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <div class="card bg-light h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-bezier2 text-info"></i> Combos are Key
+                                            </h6>
+                                            <p class="card-text small mb-0">
+                                                During matches, you can combo Offense/Defense cards with Support cards 
+                                                for powerful boosted plays!
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <div class="card bg-light h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="bi bi-shuffle text-primary"></i> Experiment!
+                                            </h6>
+                                            <p class="card-text small mb-0">
+                                                Try different deck compositions. Offense-heavy, defense-focused, 
+                                                or balanced - find your winning strategy!
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="modal-footer">
+                            <div class="form-check me-auto">
+                                <input class="form-check-input" type="checkbox" id="dontShowAgain">
+                                <label class="form-check-label small" for="dontShowAgain">
+                                    Don't show this again
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    checkFirstTimeUser() {
+        // Check if user has seen tutorial before
+        const hasSeenTutorial = localStorage.getItem('moment_rivals_deck_tutorial_seen');
+        
+        if (!hasSeenTutorial) {
+            // First time user - show tutorial automatically after short delay
+            setTimeout(() => {
+                this.showTutorial();
+                Logger.info('First-time deck builder - showing tutorial');
+            }, 2000);
+        }
+    }
+    
+    showTutorial() {
+        const modal = new bootstrap.Modal(document.getElementById('tutorialModal'));
+        modal.show();
+        
+        Logger.info('Tutorial modal shown');
+    }
+    
     
     renderDeckSlots() {
         let html = '<div class="deck-slots">';
@@ -244,7 +534,22 @@ export class DeckScreen {
         document.getElementById('settingsBtn')?.addEventListener('click', () => {
             this.app.showScreen('settings');
         });
+
+        // Tutorial button
+        document.getElementById('showTutorialBtn')?.addEventListener('click', () => {
+            this.showTutorial();
+        });
         
+        // Don't show again checkbox
+        document.getElementById('dontShowAgain')?.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                localStorage.setItem('moment_rivals_deck_tutorial_seen', 'true');
+                Logger.info('User opted out of tutorial');
+            } else {
+                localStorage.removeItem('moment_rivals_deck_tutorial_seen');
+            }
+        });
+
         // Filters
         document.getElementById('filterTier')?.addEventListener('change', (e) => {
             this.filterTier = e.target.value;
