@@ -43,7 +43,7 @@ export class LoginScreen {
                                         <small class="text-muted">
                                             <strong>New to Flow?</strong><br>
                                             Get a wallet at 
-                                            <a href="https://wallet.flow.com" target="_blank">Flow Wallet</a>
+                                            <a href="https://wallet.flow.com" target="_blank">Flow Wallet</a> or 
                                             <a href="https://lilico.app" target="_blank">Lilico</a>
                                         </small>
                                     </div>

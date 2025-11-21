@@ -5,7 +5,7 @@
 
 window.MomentRivalsConfig = {
     // Environment
-    VERSION: '0.1.0',
+    VERSION: '0.1.5',
     ENVIRONMENT: 'development', // 'development' | 'production'
     
     // Mock mode for testing without wallet
