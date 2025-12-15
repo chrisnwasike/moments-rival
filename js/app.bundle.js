@@ -3,17 +3,16 @@
  * Entry point that initializes the application
  */
 
-import { Logger } from '../../src/utils/logger.js';
-import { logout, isLoggedIn } from '../../src/utils/auth.js'
-import { BootScreen } from '../../src/ui/screens/boot.js';
-import { LoginScreen } from '../../src/ui/screens/login.js';
-import { FetchScreen } from '../../src/ui/screens/fetch.js';
-import { DeckScreen } from '../../src/ui/screens/deck.js';
-import { LobbyScreen } from '../../src/ui/screens/lobby.js';
-import { MatchScreen } from '../../src/ui/screens/match.js';
-import { ResultsScreen } from '../../src/ui/screens/results.js';
-import { SettingsScreen } from '../../src/ui/screens/settings.js';
-import { DevToolsScreen } from '../../src/ui/screens/devtools.js';
+import { Logger } from '../src/utils/logger.js';
+import { BootScreen } from '../src/ui/screens/boot.js';
+import { LoginScreen } from '../src/ui/screens/login.js';
+import { FetchScreen } from '../src/ui/screens/fetch.js';
+import { DeckScreen } from '../src/ui/screens/deck.js';
+import { LobbyScreen } from '../src/ui/screens/lobby.js';
+import { MatchScreen } from '../src/ui/screens/match.js';
+import { ResultsScreen } from '../src/ui/screens/results.js';
+import { SettingsScreen } from '../src/ui/screens/settings.js';
+import { DevToolsScreen } from '../src/ui/screens/devtools.js';
 
 /**
  * Main Application Class
