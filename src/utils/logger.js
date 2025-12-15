@@ -41,7 +41,7 @@ export class Logger {
     
     static debug(message, data = {}) {
         if (this.shouldLog('debug')) {
-            console.log(`[DEBUG] ${message}`, data);
+            console.log(`[DEBUG] ${message}`, JSON.stringify(data));
         }
     }
 }

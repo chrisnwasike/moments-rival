@@ -1,15 +1,25 @@
 /**
  * Match Screen - Updated with New Rules
- * 
+ *
  * NEW RULES IMPLEMENTED:
  * - Decks: Up to 25 cards, pre-validated, shuffled
- * - Starting hand: 7 cards with 1 mulligan option
- * - Turn flow: Draw → Energy refresh → Play 1 card → Reveal → Score
- * - Hand size: Max 7 (auto-discard excess)
+ * - Starting hand: 7 cards (NO MULLIGAN)
+ * - Card structure: Power and Momentum only
+ *   - Defense cards: Defense Power, Momentum (cost)
+ *   - Attack cards: Attack Power, Momentum (cost)
+ *   - Support cards: Power (buff value), Momentum (cost)
+ * - Turn flow:
+ *   - Turn 1: Draw → Energy refresh → Play/Pass (60s timer) → Reveal → Score
+ *   - Turn 2: Draw → Energy refresh → Play/Pass (60s timer) → NO REVEAL/SCORE
+ *   - Turn 3: Draw → Energy refresh → Play/Pass (60s timer) → Reveal Turn 2 → Score Turn 2 → Reveal Turn 3 → Score Turn 3
+ * - Hand size: Max 7
+ * - Pass with 7 cards: Must discard 1 card
+ * - Turn timer: 60 seconds, auto-pass if time expires
  * - Card cycling: Once per turn, discard 1 + draw 1 for 1 energy
  * - Deck exhaustion: Skip draw when empty
- * - Card play: Exactly 1 card per turn, Pass if can't afford
+ * - Manual draw: After each round, player clicks to draw
  * - Match structure: 4 rounds × 3 turns
+ * - Graveyard count: Displayed for both players
  */
 
 import { Logger } from '../../utils/logger.js';
@@ -32,7 +42,6 @@ const GAME_CONFIG = {
 
 // Game States
 const STATES = {
-    MULLIGAN: 'MULLIGAN',           // Initial mulligan phase
     DRAW: 'DRAW',                   // Draw step
     ENERGY_REFRESH: 'ENERGY_REFRESH', // Energy restoration
     ACTION: 'ACTION',               // Main action phase (play card or pass)
@@ -49,16 +58,18 @@ export class MatchScreen {
         this.app = app;
         this.gameState = null;
         this.autoAdvanceTimeout = null;
+        this.turnTimer = null;
+        this.turnTimeRemaining = 60; // 60 seconds per turn
     }
     
     render() {
         this.initGame();
-        
+
         const container = document.getElementById('app');
         container.innerHTML = `
             <div class="match-screen">
                 ${this.renderHUD()}
-                
+
                 <div class="container-fluid py-3">
                     <div class="row">
                         <!-- Main Play Area -->
@@ -66,23 +77,23 @@ export class MatchScreen {
                             ${this.renderBoard()}
                             ${this.renderPlayerArea()}
                         </div>
-                        
+
                         <!-- Event Log -->
                         <div class="col-lg-3">
                             ${this.renderLog()}
                         </div>
                     </div>
                 </div>
-                
-                ${this.renderMulliganModal()}
+
                 ${this.renderRevealModal()}
+                ${this.renderDrawModal()}
             </div>
         `;
-        
+
         this.attachEventListeners();
         this.updateUI();
-        
-        // Start match with mulligan phase
+
+        // Start match directly
         this.startMatch();
     }
     
@@ -102,13 +113,14 @@ export class MatchScreen {
         // Initialize game state
         this.gameState = {
             matchId: `match_${Date.now()}`,
-            state: STATES.MULLIGAN,
+            state: STATES.DRAW,
             config: GAME_CONFIG,
-            
+
             // Match tracking
             currentRound: 1,
             currentTurn: 1,
-            
+            waitingForDraw: false,  // For manual draw after rounds
+
             // Player state
             player: {
                 deck: playerDeck,
@@ -121,10 +133,10 @@ export class MatchScreen {
                 roundsWon: 0,
                 selectedCards: [],  // Array of selected cards for combos
                 cycledThisTurn: false,
-                hasMulliganed: false,
-                lockedPlay: null
+                lockedPlay: null,
+                hasDrawn: false  // Track if player has drawn for this turn
             },
-            
+
             // Opponent state
             opponent: {
                 deck: opponentDeck,
@@ -137,16 +149,16 @@ export class MatchScreen {
                 roundsWon: 0,
                 selectedCards: [],  // Array of selected cards for combos
                 cycledThisTurn: false,
-                hasMulliganed: false,
-                lockedPlay: null
+                lockedPlay: null,
+                hasDrawn: false  // Track if opponent has drawn for this turn
             },
-            
+
             // Round tracking
             rounds: [],
-            
+
             // Event log
             eventLog: [],
-            
+
             winner: null
         };
         
@@ -182,51 +194,43 @@ export class MatchScreen {
     createOpponentDeck() {
         // Create a balanced 25-card AI deck
         const deck = [];
-        
+
         // 10 offense cards (varying power levels)
         for (let i = 0; i < 10; i++) {
             deck.push({
                 id: `ai_off_${i}`,
                 playerName: `AI Offense ${i + 1}`,
                 cardType: 'OFFENSE',
-                offense: 1 + Math.floor(i / 2),
-                defense: 2,
-                speed: 4 + (i % 3),
-                agility: 4,
-                energyCost: 1 + Math.floor(i / 3),
+                power: 1 + Math.floor(i / 2),  // Attack Power
+                momentum: 1 + Math.floor(i / 3),  // Cost (Momentum)
                 momentId: null
             });
         }
-        
+
         // 10 defense cards
         for (let i = 0; i < 10; i++) {
             deck.push({
                 id: `ai_def_${i}`,
                 playerName: `AI Defense ${i + 1}`,
                 cardType: 'DEFENSE',
-                offense: 2,
-                defense: 1 + Math.floor(i / 2),
-                speed: 3 + (i % 3),
-                agility: 4,
-                energyCost: 1 + Math.floor(i / 3),
+                power: 1 + Math.floor(i / 2),  // Defense Power
+                momentum: 1 + Math.floor(i / 3),  // Cost (Momentum)
                 momentId: null
             });
         }
-        
+
         // 5 support cards
         for (let i = 0; i < 5; i++) {
             deck.push({
                 id: `ai_sup_${i}`,
                 playerName: `AI Support ${i + 1}`,
                 cardType: 'SUPPORT',
-                boostValue: 2 + Math.floor(i / 2), // Boost by 2-3 points
-                speed: 5 + i,
-                agility: 5 + i,
-                energyCost: 1 + Math.floor(i / 2),
+                power: 2 + Math.floor(i / 2),  // Power to buff def or attack cards
+                momentum: 1 + Math.floor(i / 2),  // Cost (Momentum)
                 momentId: null
             });
         }
-        
+
         return deck;
     }
     
@@ -241,69 +245,18 @@ export class MatchScreen {
     }
     
     // ============================================================================
-    // MULLIGAN PHASE
+    // MATCH START
     // ============================================================================
-    
+
     startMatch() {
         // Draw initial hands (7 cards each)
         this.drawCards('player', GAME_CONFIG.STARTING_HAND_SIZE);
         this.drawCards('opponent', GAME_CONFIG.STARTING_HAND_SIZE);
-        
+
         this.addLog('Match started! Draw your starting hand of 7 cards.');
-        this.addLog('You may mulligan once: discard any cards and draw back (same number - 1).');
-        
         this.updateUI();
-        
-        // Show mulligan modal
-        this.showMulliganModal();
-    }
-    
-    showMulliganModal() {
-        const modal = new bootstrap.Modal(document.getElementById('mulliganModal'));
-        modal.show();
-    }
-    
-    processMulligan(discardIds) {
-        if (this.gameState.player.hasMulliganed) {
-            showToast('You have already used your mulligan', 'warning');
-            return;
-        }
-        
-        if (discardIds.length === 0) {
-            // Skip mulligan
-            this.addLog('Mulligan skipped. Keeping starting hand.');
-        } else {
-            // Discard selected cards
-            discardIds.forEach(cardId => {
-                const idx = this.gameState.player.hand.findIndex(c => c.id === cardId);
-                if (idx !== -1) {
-                    const card = this.gameState.player.hand.splice(idx, 1)[0];
-                    // Return to bottom of deck
-                    this.gameState.player.deck.push(card);
-                }
-            });
-            
-            // Shuffle deck
-            this.gameState.player.deck = this.shuffleDeck(this.gameState.player.deck);
-            
-            // Draw back (same number - 1)
-            const drawCount = Math.max(0, discardIds.length - GAME_CONFIG.MULLIGAN_PENALTY);
-            this.drawCards('player', drawCount);
-            
-            this.addLog(`Mulligan: Discarded ${discardIds.length} cards, drew ${drawCount} cards.`);
-        }
-        
-        this.gameState.player.hasMulliganed = true;
-        
-        // AI mulligan decision (simplified - keep all cards for now)
-        this.gameState.opponent.hasMulliganed = true;
-        this.addLog('Opponent kept their starting hand.');
-        
-        // Close modal and start first turn
-        const modal = bootstrap.Modal.getInstance(document.getElementById('mulliganModal'));
-        modal.hide();
-        
-        // Transition to first turn
+
+        // Start first turn immediately
         setTimeout(() => {
             this.startTurn();
         }, 500);
@@ -315,7 +268,7 @@ export class MatchScreen {
     
     startTurn() {
         this.addLog(`─── Round ${this.gameState.currentRound}, Turn ${this.gameState.currentTurn} ───`);
-        
+
         // Reset turn state
         this.gameState.player.selectedCards = [];
         this.gameState.opponent.selectedCards = [];
@@ -323,9 +276,19 @@ export class MatchScreen {
         this.gameState.opponent.cycledThisTurn = false;
         this.gameState.player.lockedPlay = null;
         this.gameState.opponent.lockedPlay = null;
-        
-        // Step 1: Draw phase
-        this.executeDrawStep();
+        this.gameState.player.hasDrawn = false;
+        this.gameState.opponent.hasDrawn = false;
+
+        // For the first turn of each round (except round 1 turn 1), show draw button
+        if (this.gameState.currentRound > 1 && this.gameState.currentTurn === 1) {
+            this.gameState.waitingForDraw = true;
+            this.gameState.state = STATES.DRAW;
+            this.addLog('Click "Draw Cards" to start the new round.');
+            this.updateUI();
+        } else {
+            // Step 1: Draw phase (automatic for turn 1 of round 1 and all other turns)
+            this.executeDrawStep();
+        }
     }
     
     executeDrawStep() {
@@ -384,11 +347,51 @@ export class MatchScreen {
     
     executeActionPhase() {
         this.gameState.state = STATES.ACTION;
-        this.addLog('Action Phase - Play 1 card or Pass');
+        this.addLog('Action Phase - Play 1 card or Pass (60 seconds)');
+
+        // Start 60-second timer
+        this.startTurnTimer();
+
         this.updateUI();
-        
+
         // Player makes their choice
         // UI controls are now active
+    }
+
+    startTurnTimer() {
+        this.turnTimeRemaining = 60;
+        this.clearTurnTimer();
+
+        this.turnTimer = setInterval(() => {
+            this.turnTimeRemaining--;
+
+            if (this.turnTimeRemaining <= 0) {
+                this.clearTurnTimer();
+                // Auto-pass if player hasn't made a move
+                if (!this.gameState.player.lockedPlay && this.gameState.state === STATES.ACTION) {
+                    this.addLog('Time expired - Auto-passing...');
+                    this.selectPass();
+                }
+            }
+
+            // Update UI to show timer
+            const timerDisplay = document.getElementById('turnTimer');
+            if (timerDisplay) {
+                timerDisplay.textContent = this.turnTimeRemaining;
+                if (this.turnTimeRemaining <= 10) {
+                    timerDisplay.classList.add('text-danger');
+                } else {
+                    timerDisplay.classList.remove('text-danger');
+                }
+            }
+        }, 1000);
+    }
+
+    clearTurnTimer() {
+        if (this.turnTimer) {
+            clearInterval(this.turnTimer);
+            this.turnTimer = null;
+        }
     }
     
     // ============================================================================
@@ -486,13 +489,13 @@ export class MatchScreen {
         }
         
         // Check if combo is affordable
-        const totalCost = this.gameState.player.selectedCards.reduce((sum, c) => sum + c.energyCost, 0);
+        const totalCost = this.gameState.player.selectedCards.reduce((sum, c) => sum + (c.momentum || c.energyCost || 0), 0);
         if (totalCost > this.gameState.player.energy) {
             showToast('Not enough energy for this combination', 'warning');
             this.gameState.player.selectedCards = currentSelection; // Revert
             return;
         }
-        
+
         this.updateUI();
     }
     
@@ -520,12 +523,15 @@ export class MatchScreen {
         }
         
         // Check total cost
-        const totalCost = selectedCards.reduce((sum, c) => sum + c.energyCost, 0);
+        const totalCost = selectedCards.reduce((sum, c) => sum + (c.momentum || c.energyCost || 0), 0);
         if (totalCost > this.gameState.player.energy) {
             showToast('Not enough energy to play these cards', 'warning');
             return;
         }
-        
+
+        // Clear turn timer
+        this.clearTurnTimer();
+
         // Remove cards from hand
         selectedCards.forEach(card => {
             const idx = this.gameState.player.hand.findIndex(c => c.id === card.id);
@@ -533,28 +539,28 @@ export class MatchScreen {
                 this.gameState.player.hand.splice(idx, 1);
             }
         });
-        
+
         // Spend energy
         this.gameState.player.energy -= totalCost;
-        
+
         // Set locked play
         const mainCard = mainCards[0];
         const supportCard = supportCards.length > 0 ? supportCards[0] : null;
-        
+
         this.gameState.player.lockedPlay = {
             type: 'CARD',
             mainCard: mainCard,
             supportCard: supportCard,
             cards: selectedCards // Keep reference to all cards
         };
-        
-        const playDesc = supportCard 
+
+        const playDesc = supportCard
             ? `${mainCard.playerName} + ${supportCard.playerName} (Cost: ${totalCost})`
             : `${mainCard.playerName} (Cost: ${totalCost})`;
-        
+
         this.addLog(`You played: ${playDesc}`);
         this.updateUI();
-        
+
         // AI makes their play
         setTimeout(() => {
             this.aiPlay();
@@ -564,14 +570,25 @@ export class MatchScreen {
     selectPass() {
         if (this.gameState.state !== STATES.ACTION) return;
         if (this.gameState.player.lockedPlay) return;
-        
+
+        // Clear turn timer
+        this.clearTurnTimer();
+
+        // Check hand limit - if passing with 7 cards, must discard one
+        if (this.gameState.player.hand.length >= 7) {
+            // Auto-discard the first card
+            const discarded = this.gameState.player.hand.shift();
+            this.gameState.player.graveyard.push(discarded);
+            this.addLog(`Hand limit: ${discarded.playerName} discarded (passed with 7 cards).`);
+        }
+
         this.gameState.player.lockedPlay = {
             type: 'PASS'
         };
-        
+
         this.addLog('You passed this turn.');
         this.updateUI();
-        
+
         // AI makes their play
         setTimeout(() => {
             this.aiPlay();
@@ -582,66 +599,72 @@ export class MatchScreen {
     aiPlay() {
         // Simple AI: play highest affordable card, optionally with support
         const affordableMainCards = this.gameState.opponent.hand.filter(
-            c => (c.cardType === 'OFFENSE' || c.cardType === 'DEFENSE') && 
-                 c.energyCost <= this.gameState.opponent.energy
+            c => (c.cardType === 'OFFENSE' || c.cardType === 'DEFENSE') &&
+                 (c.momentum || c.energyCost || 0) <= this.gameState.opponent.energy
         );
-        
+
         if (affordableMainCards.length === 0) {
-            // Must pass
+            // Must pass - check hand limit
+            if (this.gameState.opponent.hand.length >= 7) {
+                const discarded = this.gameState.opponent.hand.shift();
+                this.gameState.opponent.graveyard.push(discarded);
+                this.addLog('Opponent discarded a card (passed with 7 cards).');
+            }
+
             this.gameState.opponent.lockedPlay = { type: 'PASS' };
             this.addLog('Opponent passed this turn.');
         } else {
             // Play best main card
             const bestMainCard = affordableMainCards.reduce((best, card) => {
-                const cardValue = (card.offense || 0) + (card.defense || 0);
-                const bestValue = (best.offense || 0) + (best.defense || 0);
+                const cardValue = (card.power || 0);
+                const bestValue = (best.power || 0);
                 return cardValue > bestValue ? card : best;
             }, affordableMainCards[0]);
-            
+
             // Check if we can afford a SUPPORT card too
             let supportCard = null;
-            const remainingEnergy = this.gameState.opponent.energy - bestMainCard.energyCost;
+            const remainingEnergy = this.gameState.opponent.energy - (bestMainCard.momentum || bestMainCard.energyCost || 0);
             const affordableSupport = this.gameState.opponent.hand.filter(
-                c => c.cardType === 'SUPPORT' && c.energyCost <= remainingEnergy
+                c => c.cardType === 'SUPPORT' && (c.momentum || c.energyCost || 0) <= remainingEnergy
             );
-            
+
             // 30% chance to use support if available
             if (affordableSupport.length > 0 && Math.random() < 0.3) {
                 supportCard = affordableSupport[0];
             }
-            
+
             // Remove cards from hand
             const cardsToPlay = [bestMainCard];
             if (supportCard) cardsToPlay.push(supportCard);
-            
+
             cardsToPlay.forEach(card => {
                 const idx = this.gameState.opponent.hand.findIndex(c => c.id === card.id);
                 if (idx !== -1) {
                     this.gameState.opponent.hand.splice(idx, 1);
                 }
             });
-            
+
             // Spend energy
-            const totalCost = cardsToPlay.reduce((sum, c) => sum + c.energyCost, 0);
+            const totalCost = cardsToPlay.reduce((sum, c) => sum + (c.momentum || c.energyCost || 0), 0);
             this.gameState.opponent.energy -= totalCost;
-            
+
             this.gameState.opponent.lockedPlay = {
                 type: 'CARD',
                 mainCard: bestMainCard,
                 supportCard: supportCard,
                 cards: cardsToPlay
             };
-            
-            const playDesc = supportCard 
+
+            const playDesc = supportCard
                 ? `a card combo (Cost: ${totalCost})`
                 : `a card (Cost: ${totalCost})`;
-            
+
             this.addLog(`Opponent played ${playDesc}`);
         }
-        
+
         this.updateUI();
-        
-        // Both players locked in - proceed to reveal
+
+        // Both players locked in - proceed to reveal/scoring based on turn
         setTimeout(() => {
             this.executeReveal();
         }, 1500);
@@ -652,105 +675,152 @@ export class MatchScreen {
     
     executeReveal() {
         this.gameState.state = STATES.REVEAL;
-        this.addLog('═══ REVEAL ═══');
-        
+
         const turn = this.getCurrentTurn();
         turn.playerPlay = this.gameState.player.lockedPlay;
+        console.log('My play', turn.playerPlay)
         turn.opponentPlay = this.gameState.opponent.lockedPlay;
-        
-        // Show reveal modal
-        this.showRevealModal();
-        
-        setTimeout(() => {
-            this.executeScoring();
-        }, 5000);
+        console.log('AI play', turn.opponentPlay)
+
+        const currentTurn = this.gameState.currentTurn;
+
+        if (currentTurn === 1) {
+            // Turn 1: Reveal and score
+            this.addLog('═══ TURN 1 REVEAL ═══');
+            this.showRevealModal();
+
+            setTimeout(() => {
+                this.executeScoring();
+            }, 3000);
+        } else if (currentTurn === 2) {
+            // Turn 2: No reveal, no score - just store the play
+            this.addLog('Turn 2: Plays locked (will be revealed in Turn 3)');
+            turn.resolved = false;  // Mark as not yet resolved
+
+            // Skip directly to turn end
+            setTimeout(() => {
+                this.executeTurnEnd();
+            }, 1000);
+        } else if (currentTurn === 3) {
+            // Turn 3: First reveal turn 2 and score it, then reveal turn 3 and score it
+            this.addLog('═══ TURN 3: REVEALING TURN 2 FIRST ═══');
+
+            const turn2 = this.gameState.rounds[this.gameState.currentRound - 1].turns[1]; // Turn 2
+
+            // Show turn 2 reveal first
+            this.showRevealModal(turn2);
+
+            setTimeout(() => {
+                // Score turn 2
+                this.scoreSpecificTurn(turn2, 2);
+
+                this.addLog('═══ NOW REVEALING TURN 3 ═══');
+
+                // Show turn 3 reveal
+                setTimeout(() => {
+                    this.showRevealModal(turn);
+
+                    setTimeout(() => {
+                        // Score turn 3
+                        this.executeScoring();
+                    }, 3000);
+                }, 2000);
+            }, 3000);
+        }
     }
     
 
-    executeScoring() {
-        this.gameState.state = STATES.SCORING;
-        this.addLog('Calculating scores...');
-        
-        const turn = this.getCurrentTurn();
+    scoreSpecificTurn(turn, turnNumber) {
+        this.addLog(`Calculating scores for Turn ${turnNumber}...`);
+
         const playerPlay = turn.playerPlay;
         const opponentPlay = turn.opponentPlay;
-        
+
         let playerPoints = 0;
         let opponentPoints = 0;
-        
-        // Calculate points based on plays
+
+        // Calculate points based on plays with new Power/Momentum system
         if (playerPlay.type === 'CARD' && opponentPlay.type === 'CARD') {
             const playerMain = playerPlay.mainCard;
             const playerSupport = playerPlay.supportCard;
             const opponentMain = opponentPlay.mainCard;
             const opponentSupport = opponentPlay.supportCard;
-            
-            // Calculate boosted stats
-            const playerBoost = playerSupport ? (playerSupport.boostValue || 0) : 0;
-            const opponentBoost = opponentSupport ? (opponentSupport.boostValue || 0) : 0;
-            
-            let playerAttack = (playerMain.offense || 0) + playerBoost;
-            let playerDefense = (playerMain.defense || 0) + playerBoost;
-            let opponentAttack = (opponentMain.offense || 0) + opponentBoost;
-            let opponentDefense = (opponentMain.defense || 0) + opponentBoost;
-            
-            // Player points = their offense - opponent defense
-            playerPoints = Math.max(0, playerAttack - opponentDefense);
-            
-            // Opponent points = their offense - player defense
-            opponentPoints = Math.max(0, opponentAttack - playerDefense);
-            
-            const playerCardDesc = playerSupport 
-                ? `${playerMain.playerName} + ${playerSupport.playerName} (ATK:${playerAttack} DEF:${playerDefense})`
-                : `${playerMain.playerName} (ATK:${playerAttack} DEF:${playerDefense})`;
-            
+
+            // Calculate power with support boost
+            const playerBoost = playerSupport ? (playerSupport.power || 0) : 0;
+            const opponentBoost = opponentSupport ? (opponentSupport.power || 0) : 0;
+
+            let playerPower = (playerMain.power || 0) + playerBoost;
+            let opponentPower = (opponentMain.power || 0) + opponentBoost;
+
+            // Scoring logic based on card types
+            if (playerMain.cardType === 'OFFENSE' && opponentMain.cardType === 'DEFENSE') {
+                // Attack vs Defense
+                playerPoints = Math.max(0, playerPower - opponentPower);
+            } else if (playerMain.cardType === 'DEFENSE' && opponentMain.cardType === 'OFFENSE') {
+                // Defense vs Attack
+                opponentPoints = Math.max(0, opponentPower - playerPower);
+            } else if (playerMain.cardType === 'OFFENSE' && opponentMain.cardType === 'OFFENSE') {
+                // Both attacking - both score their power
+                playerPoints = playerPower;
+                opponentPoints = opponentPower;
+            } else if (playerMain.cardType === 'DEFENSE' && opponentMain.cardType === 'DEFENSE') {
+                // Both defending - no points
+                playerPoints = 0;
+                opponentPoints = 0;
+            }
+
+            const playerCardDesc = playerSupport
+                ? `${playerMain.playerName} + ${playerSupport.playerName} (Power:${playerPower})`
+                : `${playerMain.playerName} (Power:${playerPower})`;
+
             const opponentCardDesc = opponentSupport
-                ? `Combo (ATK:${opponentAttack} DEF:${opponentDefense})`
-                : `Card (ATK:${opponentAttack} DEF:${opponentDefense})`;
-            
+                ? `Combo (Power:${opponentPower})`
+                : `Card (Power:${opponentPower})`;
+
             this.addLog(`${playerCardDesc} vs ${opponentCardDesc}`);
-            
+
         } else if (playerPlay.type === 'CARD') {
             // Only player played a card
             const playerMain = playerPlay.mainCard;
             const playerSupport = playerPlay.supportCard;
-            const playerBoost = playerSupport ? (playerSupport.boostValue || 0) : 0;
-            
-            playerPoints = (playerMain.offense || 0) + playerBoost;
-            
+            const playerBoost = playerSupport ? (playerSupport.power || 0) : 0;
+
+            playerPoints = (playerMain.power || 0) + playerBoost;
+
             const cardDesc = playerSupport
                 ? `${playerMain.playerName} + ${playerSupport.playerName}`
                 : playerMain.playerName;
-            
+
             this.addLog(`${cardDesc} scores unopposed!`);
-            
+
         } else if (opponentPlay.type === 'CARD') {
             // Only opponent played a card
             const opponentMain = opponentPlay.mainCard;
             const opponentSupport = opponentPlay.supportCard;
-            const opponentBoost = opponentSupport ? (opponentSupport.boostValue || 0) : 0;
-            
-            opponentPoints = (opponentMain.offense || 0) + opponentBoost;
+            const opponentBoost = opponentSupport ? (opponentSupport.power || 0) : 0;
+
+            opponentPoints = (opponentMain.power || 0) + opponentBoost;
             this.addLog(`Opponent scores unopposed!`);
-            
+
         } else {
             // Both passed
             this.addLog('Both players passed - no points scored.');
         }
-        
+
         // Update scores
         turn.playerPoints = playerPoints;
         turn.opponentPoints = opponentPoints;
         turn.resolved = true;
-        
+
         this.gameState.player.roundScore += playerPoints;
         this.gameState.opponent.roundScore += opponentPoints;
         this.gameState.player.totalScore += playerPoints;
         this.gameState.opponent.totalScore += opponentPoints;
-        
-        this.addLog(`Points: You +${playerPoints} | Opponent +${opponentPoints}`);
+
+        this.addLog(`Turn ${turnNumber} Points: You +${playerPoints} | Opponent +${opponentPoints}`);
         this.addLog(`Round Score: You ${this.gameState.player.roundScore} - ${this.gameState.opponent.roundScore} Opponent`);
-        
+
         // Move played cards to graveyard
         if (playerPlay.type === 'CARD' && playerPlay.cards) {
             playerPlay.cards.forEach(card => {
@@ -762,13 +832,20 @@ export class MatchScreen {
                 this.gameState.opponent.graveyard.push(card);
             });
         }
-        
+
         this.updateUI();
-        
+
         // Close reveal modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('revealModal'));
         if (modal) modal.hide();
-        
+    }
+
+    executeScoring() {
+        this.gameState.state = STATES.SCORING;
+
+        const turn = this.getCurrentTurn();
+        this.scoreSpecificTurn(turn, this.gameState.currentTurn);
+
         // Check if turn/round/match ends
         setTimeout(() => {
             this.executeTurnEnd();
@@ -915,7 +992,7 @@ export class MatchScreen {
     }
     
     addLog(message) {
-        this.gameState.eventLog.unshift({
+        this.gameState.eventLog.push({
             timestamp: Date.now(),
             message: message
         });
@@ -1056,13 +1133,29 @@ export class MatchScreen {
     
     renderPlayerArea() {
         const state = this.gameState;
-        const canCycle = !state.player.cycledThisTurn && 
+        const canCycle = !state.player.cycledThisTurn &&
                         state.player.energy >= GAME_CONFIG.CYCLE_COST &&
                         state.state === STATES.ACTION;
-        
+
         return `
             <div class="card 1">
                 <div class="card-body">
+                    <!-- Turn Timer -->
+                    ${state.state === STATES.ACTION ? `
+                        <div class="alert alert-warning mb-3 text-center">
+                            <h4>Time Remaining: <span id="turnTimer" class="fw-bold">${this.turnTimeRemaining}</span>s</h4>
+                        </div>
+                    ` : ''}
+
+                    <!-- Draw Button (if waiting for draw) -->
+                    ${state.waitingForDraw ? `
+                        <div class="alert alert-primary mb-3 text-center">
+                            <button id="drawCardsBtn" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-down"></i> Draw Cards for New Round
+                            </button>
+                        </div>
+                    ` : ''}
+
                     <!-- Energy Display -->
                     <div class="row mb-3">
                         <div class="col-6">
@@ -1072,39 +1165,42 @@ export class MatchScreen {
                             ${EnergyMeter.render(state.opponent.energy, 10, 'danger', 'Opponent Energy')}
                         </div>
                     </div>
-                    
+
                     <!-- Deck Info -->
                     <div class="row mb-3">
                         <div class="col-6">
                             <small class="text-muted">
                                 <i class="bi bi-stack"></i> Deck: ${state.player.deck.length} cards
                                 | Hand: ${state.player.hand.length}/${GAME_CONFIG.MAX_HAND_SIZE}
-                                | Graveyard: ${state.player.graveyard.length}
+                                | <strong>Graveyard: ${state.player.graveyard.length} cards</strong>
                             </small>
                         </div>
                         <div class="col-6 text-end">
+                            <small class="text-muted">
+                                Opponent Graveyard: ${state.opponent.graveyard.length} cards
+                            </small>
                             ${canCycle ? `
-                                <span class="badge bg-info">
-                                    <i class="bi bi-arrow-repeat"></i> 
+                                <br><span class="badge bg-info">
+                                    <i class="bi bi-arrow-repeat"></i>
                                     Cycle Available (${GAME_CONFIG.CYCLE_COST} energy)
                                 </span>
                             ` : ''}
                         </div>
                     </div>
-                    
+
                     <!-- Hand -->
                     <div id="handArea">
                         ${this.renderHand()}
                     </div>
-                    
+
                     <!-- Selection Info -->
                     <div id="selectionInfo" class="alert alert-info mt-3">
                         ${this.getSelectionInfo()}
                     </div>
-                    
+
                     <!-- Action Buttons -->
                     <div class="d-flex gap-2 justify-content-center">
-                        <button id="playCardBtn" class="btn btn-success btn-lg" 
+                        <button id="playCardBtn" class="btn btn-success btn-lg"
                                 ${state.state !== STATES.ACTION || !state.player.selectedCards || state.player.lockedPlay ? 'disabled' : ''}>
                             <i class="bi bi-play-circle"></i> Play Card
                         </button>
@@ -1120,23 +1216,24 @@ export class MatchScreen {
     
     renderHand() {
         const state = this.gameState;
-        const canCycle = !state.player.cycledThisTurn && 
+        const canCycle = !state.player.cycledThisTurn &&
                         state.player.energy >= GAME_CONFIG.CYCLE_COST &&
                         state.state === STATES.ACTION;
-        
+
         if (state.player.hand.length === 0) {
             return '<p class="text-center text-muted">No cards in hand</p>';
         }
-        
+
         const selectedCards = state.player.selectedCards || [];
-        
+
         return `
             <div class="hand-grid">
                 ${state.player.hand.map(card => {
                     const isSelected = selectedCards.find(c => c.id === card.id);
-                    const totalCost = selectedCards.reduce((sum, c) => sum + c.energyCost, 0);
-                    const wouldBeAffordable = totalCost - (isSelected ? card.energyCost : 0) + card.energyCost <= state.player.energy;
-                    
+                    const totalCost = selectedCards.reduce((sum, c) => sum + (c.momentum || c.energyCost || 0), 0);
+                    const cardCost = card.momentum || card.energyCost || 0;
+                    const wouldBeAffordable = totalCost - (isSelected ? cardCost : 0) + cardCost <= state.player.energy;
+
                     return `
                     <div class="card-hand-holder">
                              ${CardTile.renderGameMode(card, {
@@ -1216,28 +1313,18 @@ export class MatchScreen {
         `).join('');
     }
     
-    renderMulliganModal() {
+    renderDrawModal() {
         return `
-            <div class="modal fade" id="mulliganModal" data-bs-backdrop="static" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+            <div class="modal fade" id="drawModal" data-bs-backdrop="static" tabindex="-1">
+                <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Mulligan Phase</h5>
+                            <h5 class="modal-title">Draw Phase</h5>
                         </div>
-                        <div class="modal-body">
-                            <p>You may discard any number of cards and draw back <strong>(same number - 1)</strong> card.</p>
-                            <p class="text-muted">This is your only mulligan for the match.</p>
-                            
-                            <div id="mulliganHand" class="row g-2 mt-3">
-                                <!-- Will be populated dynamically -->
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" id="skipMulliganBtn">
-                                Keep Hand
-                            </button>
-                            <button type="button" class="btn btn-primary" id="confirmMulliganBtn">
-                                Mulligan Selected Cards
+                        <div class="modal-body text-center">
+                            <p>Ready to draw cards for the new round?</p>
+                            <button type="button" class="btn btn-primary btn-lg" id="confirmDrawBtn">
+                                <i class="bi bi-box-arrow-in-down"></i> Draw Cards
                             </button>
                         </div>
                     </div>
@@ -1269,14 +1356,17 @@ export class MatchScreen {
     }
     
 
-    showRevealModal() {
+    showRevealModal(turn = null) {
         const modal = new bootstrap.Modal(document.getElementById('revealModal'));
         modal.show();
-        
+
         setTimeout(() => {
             const content = document.getElementById('revealContent');
-            const playerPlay = this.gameState.player.lockedPlay;
-            const opponentPlay = this.gameState.opponent.lockedPlay;
+
+            // Use provided turn or current turn
+            const revealTurn = turn || this.getCurrentTurn();
+            const playerPlay = revealTurn.playerPlay;
+            const opponentPlay = revealTurn.opponentPlay;
             
             // Helper function to render a play
             const renderPlay = (play, isPlayer) => {
@@ -1363,38 +1453,23 @@ export class MatchScreen {
                 }
             });
         }
-        
-        // Mulligan
-        const skipMulliganBtn = document.getElementById('skipMulliganBtn');
-        if (skipMulliganBtn) {
-            skipMulliganBtn.addEventListener('click', () => {
-                this.processMulligan([]);
+
+        // Draw Cards button
+        const drawCardsBtn = document.getElementById('drawCardsBtn');
+        if (drawCardsBtn) {
+            drawCardsBtn.addEventListener('click', () => {
+                this.handleManualDraw();
             });
         }
-        
-        const confirmMulliganBtn = document.getElementById('confirmMulliganBtn');
-        if (confirmMulliganBtn) {
-            confirmMulliganBtn.addEventListener('click', () => {
-                const selected = Array.from(
-                    document.querySelectorAll('#mulliganHand [data-card-id].selected')
-                ).map(el => el.dataset.cardId);
-                
-                this.processMulligan(selected);
-            });
-        }
-        
-        // Update mulligan hand display
-        const mulliganHand = document.getElementById('mulliganHand');
-        if (mulliganHand && this.gameState.state === STATES.MULLIGAN) {
-            mulliganHand.innerHTML = this.gameState.player.hand.map(card => `
-                <div class="col-md-3 col-sm-4 col-6">
-                    ${CardTile.renderGameMode(card, {
-                        selectable: true,
-                        onSelect: true
-                    })}
-                </div>
-            `).join('');
-        }
+    }
+
+    handleManualDraw() {
+        if (!this.gameState.waitingForDraw) return;
+
+        this.gameState.waitingForDraw = false;
+
+        // Draw cards for both players
+        this.executeDrawStep();
     }
     
 
@@ -1445,8 +1520,16 @@ export class MatchScreen {
         const logContainer = document.getElementById('eventLog');
         if (logContainer) {
             logContainer.innerHTML = this.renderLogEntries();
+
+            const heightToScroll = logContainer.scrollHeight;
+            logContainer.scrollTo({
+                top: heightToScroll,
+                left: 0,
+                behavior: "smooth",
+            });
         }
-        
+
+
         // Re-attach listeners
         this.attachEventListeners();
     }
@@ -1455,5 +1538,6 @@ export class MatchScreen {
         if (this.autoAdvanceTimeout) {
             clearTimeout(this.autoAdvanceTimeout);
         }
+        this.clearTurnTimer();
     }
 }

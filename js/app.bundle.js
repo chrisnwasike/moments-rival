@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '../src/utils/logger.js';
+import { logout, isLoggedIn } from '../src/utils/auth.js'
 import { BootScreen } from '../src/ui/screens/boot.js';
 import { LoginScreen } from '../src/ui/screens/login.js';
 import { FetchScreen } from '../src/ui/screens/fetch.js';
@@ -77,14 +78,34 @@ class MomentRivalsApp {
      * Set up FCL user subscription
      */
     setupFCLSubscription() {
-        window.fcl.currentUser.subscribe(user => {
+        window.fcl.currentUser.subscribe(async (user) => {
             if (user.loggedIn) {
                 this.walletAddress = user.addr;
+
+                const walletInfo = await getDapperUserInfo();
+                this.walletType = walletInfo?.isDapper ? 'dapper' : 'other';
+                
+                Logger.info('User authenticated', { 
+                    address: user.addr,
+                    walletType: this.walletType 
+                });
+
                 Logger.info('User authenticated', { address: user.addr });
             } else if (this.walletAddress) {
                 // User logged out
+               Logger.info('User logged out - clearing state');
+                
                 this.walletAddress = null;
-                Logger.info('User logged out');
+                this.walletType = null;
+                this.moments = [];
+                this.playerDeck = [];
+                this.matchConfig = null;
+                this.matchResult = null;
+                
+                // Only redirect to login if not already there
+                if (this.currentScreen !== 'login') {
+                    this.showScreen('login');
+                }
             }
         });
     }
@@ -120,6 +141,32 @@ class MomentRivalsApp {
         
         this.currentScreen = screenName;
     }
+
+
+    /**
+     * Global logout method
+     */
+    async logout() {
+        try {
+            await logout();
+            
+            // Clear app state
+            this.walletAddress = null;
+            this.walletType = null;
+            this.moments = [];
+            this.playerDeck = [];
+            this.matchConfig = null;
+            this.matchResult = null;
+            
+            // Navigate to login
+            this.showScreen('login');
+            
+            return true;
+        } catch (error) {
+            Logger.error('App logout failed', { error: error.message });
+            return false;
+        }
+    }
 }
 
 /**
@@ -133,4 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.MomentRivalsConfig.ENVIRONMENT === 'development') {
         window.app = app;
     }
+
+    window.logout = () => app.logout();
+
 });

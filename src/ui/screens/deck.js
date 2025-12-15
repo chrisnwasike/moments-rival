@@ -38,7 +38,7 @@ export class DeckScreen {
                     <div class="row">
                         <!-- Deck Slots (Left) -->
                         <div class="col-lg-6">
-                            <div class="card mb-3">
+                            <div class="card h-100 mb-3">
                                 <div class="card-header bg-primary text-white">
                                     <h5 class="mb-0">
                                         <i class="bi bi-collection"></i> Your Deck
@@ -850,6 +850,7 @@ export class DeckScreen {
         
         // Convert moments to cards
         this.app.playerDeck = this.selectedMoments.map(m => momentToCard(m));
+        console.log(this.app.playerDeck);
         
         // Save to session
         sessionStorage.setItem('player_deck', JSON.stringify(this.app.playerDeck));

@@ -475,14 +475,14 @@ img.card-image {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 27px;
     height: 68vh;
     padding-bottom: 50px;
     overflow: hidden;
     overflow-y: scroll;
 }
 .deck-preview-row .card-preview {
-    width: 15%;
+    width: 18%;
 }
 .card-preview-img {
     width: 100%;

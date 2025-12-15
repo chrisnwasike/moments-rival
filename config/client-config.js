@@ -22,10 +22,26 @@ window.MomentRivalsConfig = {
         'accessNode.api': 'https://rest-mainnet.onflow.org',
         'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
         'flow.network': 'mainnet',
+
+                // Dapper Wallet specific
+        'discovery.wallet.method': 'IFRAME/RPC',
+        
+        // Authn endpoint (includes Dapper)
+        'discovery.authn.endpoint': 'https://fcl-discovery.onflow.org/api/authn',
+        
+        // Wallet recommendations (put Dapper first)
+        'discovery.wallet.method.default': 'IFRAME/RPC',
         // Uncomment below for mainnet
         // 'accessNode.api': 'https://rest-mainnet.onflow.org',
         // 'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
         // 'flow.network': 'mainnet',
+    },
+
+        // Dapper-specific settings
+    DAPPER: {
+        ENABLED: true,
+        RECOMMENDED: true, // Show as recommended wallet
+        APP_ID: 'moment-rivals', // Your app identifier
     },
 
     // API endpoints

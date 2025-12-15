@@ -16,12 +16,21 @@ export function momentToCard(moment) {
     
     // Calculate stats
     const stats = calculateStats(moment);
-    
+    let power;
+    if (cardType === 'OFFENSE') {
+        power = stats.offense
+    } else if (cardType === 'DEFENSE') {
+        power = stats.defense
+    } else {
+        power = stats.agility
+    }
+
     return {
         id: `moment_${moment.momentId}`,
         momentId: moment.momentId,
         playerName: moment.playerName,
         team: moment.team,
+        power: power,
         cardType: cardType,
         energyCost: stats.cost,
         offense: stats.offense,
@@ -34,7 +43,7 @@ export function momentToCard(moment) {
         serialNumber: moment.serialNumber,
         tier: moment.tier,
         setName: moment.setName,
-        mediaID: moment.playID,
+        mediaID: moment.momentId,
         playType: moment.playType
     };
 }
@@ -47,7 +56,6 @@ function determineCardType(playCategory) {
     
     // Offensive plays
     if (category.includes('dunk') || 
-        category.includes('layup') || 
         category.includes('shot') ||
         category.includes('score') ||
         category.includes('three') ||
@@ -65,6 +73,7 @@ function determineCardType(playCategory) {
     
     // Support plays
     if (category.includes('assist') || 
+        category.includes('layup') || 
         category.includes('pass')) {
         return 'SUPPORT';
     }

@@ -24,14 +24,14 @@ export class CardTile {
                 <div class="card-tile-compact ${typeClass}">
                     <div class="card-type-indicator bg-${this.getTypeBadgeColor(card.cardType)}">
                        <div>${typeBadge}</div>
-                       ${showCost ? `<div class="card-cost-badge">${card.energyCost}</div>` : ''}
+                       ${showCost ? `<div class="card-cost-badge">${card.momentum || card.energyCost || 0}</div>` : ''}
                     </div>
                     
                     <div class="card-name-compact">${card.playerName.split(' ').slice(0, 2).join(' ')}</div>
                     <div class="card-stats-compact">
-                        ${card.cardType === 'OFFENSE' ? `⚔️${card.offense}` : ''}
-                        ${card.cardType === 'DEFENSE' ? `🛡️${card.defense}` : ''}
-                        ${card.cardType === 'SUPPORT' ? `⭐${card.boostValue}` : ''}
+                        ${card.cardType === 'OFFENSE' ? `⚔️${card.power || card.offense || 0}` : ''}
+                        ${card.cardType === 'DEFENSE' ? `🛡️${card.power || card.defense || 0}` : ''}
+                        ${card.cardType === 'SUPPORT' ? `⭐${card.power || card.boostValue || 0}` : ''}
                     </div>
                 </div>
             `;
@@ -46,11 +46,10 @@ export class CardTile {
 
                     ${card.momentId ? `
                         <div class="card-nft-badge">
-                             NFT #${card.serialNumber || '?'}
+                             SERIAL #${card.serialNumber || '?'}
                         </div>
                     ` : ''}
 
-                    ${showCost ? `<span class="card-cost p-1 text-black fw-bold bg-${this.getTypeBadgeColor(card.cardType)}">${card.energyCost}⚡</span>` : ''}
                 </div>
                 
                 <div class="card-tile-body">
@@ -59,20 +58,12 @@ export class CardTile {
                     
                     <div class="card-stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Off</div>
-                            <div class="stat-value">${card.offense}</div>
+                            <div class="stat-label">PWR</div>
+                            <div class="stat-value">${card.power || card.offense || card.defense || card.boostValue || 0}</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Def</div>
-                            <div class="stat-value">${card.defense}</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Spd</div>
-                            <div class="stat-value">${card.speed}</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Agi</div>
-                            <div class="stat-value">${card.agility}</div>
+                            <div class="stat-label">MP</div>
+                            <div class="stat-value">${card.momentum || card.energyCost || 0}</div>
                         </div>
                     </div>
                 </div>
@@ -98,16 +89,16 @@ export class CardTile {
 
         let label, value;
         if (card.cardType === 'OFFENSE') {
-            label = 'OFF';
-            value = card.offense;
+            label = 'PWR';
+            value = card.power || card.offense || 0;  // New: power, fallback to offense
         }
         if (card.cardType === 'DEFENSE') {
-            label = 'DEF';
-            value = card.defense;
+            label = 'PWR';
+            value = card.power || card.defense || 0;  // New: power, fallback to defense
         }
         if (card.cardType === 'SUPPORT') {
-            label = 'BOOST';  // ✅ Better label
-            value = card.boostValue || card.agility;  // ✅ Use boostValue, fallback to agility
+            label = 'BUFF';
+            value = card.power || card.boostValue || card.agility || 0;  // New: power, fallback to boostValue/agility
         }
 
 
@@ -116,14 +107,14 @@ export class CardTile {
                 <div class="card-tile ${typeClass} ${selectable ? 'selectable' : ''}" data-card-id="${card.id}">
                     <div class="card-type-indicator bg-${this.getTypeBadgeColor(card.cardType)}">
                        <div>${typeBadge}</div>
-                       ${showCost ? `<div class="card-cost-badge">${card.energyCost}</div>` : ''}
+                       ${showCost ? `<div class="card-cost-badge">${card.momentum || card.energyCost || 0}</div>` : ''}
                     </div>
                     
                     <div class="card-name-compact">${card.playerName.split(' ').slice(0, 2).join(' ')}</div>
                     <div class="card-stats-compact">
-                        ${card.cardType === 'OFFENSE' ? `⚔️${card.offense}` : ''}
-                        ${card.cardType === 'DEFENSE' ? `🛡️${card.defense}` : ''}
-                        ${card.cardType === 'SUPPORT' ? `⭐${card.agility}` : ''}
+                        ${card.cardType === 'OFFENSE' ? `⚔️${card.power || card.offense || 0}` : ''}
+                        ${card.cardType === 'DEFENSE' ? `🛡️${card.power || card.defense || 0}` : ''}
+                        ${card.cardType === 'SUPPORT' ? `⭐${card.power || card.agility || 0}` : ''}
                     </div>
                 </div>
             `;
@@ -144,8 +135,8 @@ export class CardTile {
                             <div class="stat-value">${value}</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">MOM</div>
-                            <div class="stat-value">${card.energyCost}</div>
+                            <div class="stat-label">MP</div>
+                            <div class="stat-value">${card.momentum || card.energyCost || 0}</div>
                         </div>
                     </div>
                 </div>
@@ -172,16 +163,16 @@ export class CardTile {
 
         let label, value;
         if (card.cardType === 'OFFENSE') {
-            label = 'OFF';
-            value = card.offense;
+            label = 'PWR';
+            value = card.power || card.offense || 0;  // New: power, fallback to offense
         }
         if (card.cardType === 'DEFENSE') {
-            label = 'DEF';
-            value = card.defense;
+            label = 'PWR';
+            value = card.power || card.defense || 0;  // New: power, fallback to defense
         }
         if (card.cardType === 'SUPPORT') {
-            label = 'BOOST';  // ✅ Better label
-            value = card.boostValue || card.agility;  // ✅ Use boostValue, fallback to agility
+            label = 'BUFF';
+            value = card.power || card.boostValue || card.agility || 0;  // New: power, fallback to boostValue/agility
         }
 
 
@@ -209,15 +200,15 @@ export class CardTile {
                             <div class="stat-value">${value}</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">MOM</div>
-                            <div class="stat-value">${card.energyCost}</div>
+                            <div class="stat-label">MP</div>
+                            <div class="stat-value">${card.momentum || card.energyCost || 0}</div>
                         </div>
                     </div>
                     ${showCycleBtn ? `
                         <button class="btn btn-sm btn-outline-info btn-cycler" 
                                 data-cycle-btn
                                 title="Cycle this card (1 energy)">
-                            <i class="bi bi-arrow-repeat"></i>
+                            <i class="bi bi-trash"></i>
                         </button>
                     ` : ''}
                 </div>
